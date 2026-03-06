@@ -1,66 +1,111 @@
 #include <windows.h>
+#include <stdio.h>
+#include <stdlib.h>
 
-/* This is where all the input to the window goes to */
-LRESULT CALLBACK WndProc(HWND hwnd, UINT Message, WPARAM wParam, LPARAM lParam) {
-	switch(Message) {
-		
-		/* Upon destruction, tell the main thread to stop */
-		case WM_DESTROY: {
-			PostQuitMessage(0);
-			break;
-		}
-		
-		/* All other messages (a lot of them) are processed using default procedures */
-		default:
-			return DefWindowProc(hwnd, Message, wParam, lParam);
-	}
-	return 0;
+// กำหนด ID ให้กับ Control ต่างๆ เพื่อให้ง่ายต่อการอ้างอิง
+#define ID_EDIT1 101
+#define ID_EDIT2 102
+#define ID_BTN_ADD 103
+#define ID_BTN_SUB 104
+#define ID_BTN_MUL 105
+#define ID_BTN_DIV 106
+
+// สร้างตัวแปร Global เพื่อเก็บค่า Window Handle ของกล่องข้อความ (Edit Box)
+HWND hEdit1, hEdit2;
+
+// ฟังก์ชันหลักสำหรับจัดการ Event (Message) ต่างๆ ของ Window
+LRESULT CALLBACK WindowProcedure(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp) {
+    switch (msg) {
+        case WM_CREATE:
+            // สร้างช่องกรอกตัวเลขที่ 1 และ 2
+            hEdit1 = CreateWindowA("EDIT", "", WS_CHILD | WS_VISIBLE | WS_BORDER, 20, 20, 195, 25, hwnd, (HMENU)ID_EDIT1, NULL, NULL);
+            hEdit2 = CreateWindowA("EDIT", "", WS_CHILD | WS_VISIBLE | WS_BORDER, 20, 55, 195, 25, hwnd, (HMENU)ID_EDIT2, NULL, NULL);
+
+            // สร้างปุ่มกด +, -, *, /
+            CreateWindowA("BUTTON", "+", WS_CHILD | WS_VISIBLE | WS_BORDER, 20, 95, 40, 40, hwnd, (HMENU)ID_BTN_ADD, NULL, NULL);
+            CreateWindowA("BUTTON", "-", WS_CHILD | WS_VISIBLE | WS_BORDER, 70, 95, 40, 40, hwnd, (HMENU)ID_BTN_SUB, NULL, NULL);
+            CreateWindowA("BUTTON", "*", WS_CHILD | WS_VISIBLE | WS_BORDER, 120, 95, 40, 40, hwnd, (HMENU)ID_BTN_MUL, NULL, NULL);
+            CreateWindowA("BUTTON", "/", WS_CHILD | WS_VISIBLE | WS_BORDER, 170, 95, 40, 40, hwnd, (HMENU)ID_BTN_DIV, NULL, NULL);
+            break;
+
+        case WM_COMMAND: {
+            // เช็คว่า Action ที่เกิดขึ้น มาจากการกดปุ่มคำนวณหรือไม่
+            if (LOWORD(wp) >= ID_BTN_ADD && LOWORD(wp) <= ID_BTN_DIV) {
+                char text1[100], text2[100];
+                
+                // ดึงข้อความจาก Edit Box ทั้งสองช่อง
+                GetWindowTextA(hEdit1, text1, 100);
+                GetWindowTextA(hEdit2, text2, 100);
+
+                // เปลี่ยนข้อความ (c-string) เป็นตัวเลขทศนิยม (double)
+                double num1 = atof(text1);
+                double num2 = atof(text2);
+                double result = 0;
+                char out[100]; // สำหรับเก็บข้อความผลลัพธ์
+
+                // ตรวจสอบว่ากดปุ่มไหน
+                int op = LOWORD(wp);
+                if (op == ID_BTN_ADD) {
+                    result = num1 + num2;
+                } else if (op == ID_BTN_SUB) {
+                    result = num1 - num2;
+                } else if (op == ID_BTN_MUL) {
+                    result = num1 * num2;
+                } else if (op == ID_BTN_DIV) {
+                    if (num2 == 0) { // ดัก Error กรณีหารด้วย 0
+                        MessageBoxA(hwnd, "Cannot divide by zero!", "Error", MB_OK | MB_ICONERROR);
+                        return 0;
+                    }
+                    result = num1 / num2;
+                }
+
+                // แปลงผลลัพธ์ (double) กลับเป็นข้อความ (c-string) ตาม Hint
+                sprintf(out, "%f", result);
+                
+                // แสดงผลลัพธ์ใน Message Box ชื่อ "Result"
+                MessageBoxA(hwnd, out, "Result", MB_OK | MB_ICONINFORMATION);
+            }
+            break;
+        }
+
+        case WM_DESTROY:
+            // สั่งปิดโปรแกรมเมื่อผู้ใช้กดกากบาท
+            PostQuitMessage(0);
+            break;
+
+        default:
+            return DefWindowProcA(hwnd, msg, wp, lp);
+    }
+    return 0;
 }
 
-/* The 'main' function of Win32 GUI programs: this is where execution starts */
-int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine, int nCmdShow) {
-	WNDCLASSEX wc; /* A properties struct of our window */
-	HWND hwnd; /* A 'HANDLE', hence the H, or a pointer to our window */
-	MSG msg; /* A temporary location for all messages */
+// ฟังก์ชัน WinMain (จุดเริ่มต้นของโปรแกรม GUI)
+int WINAPI WinMain(HINSTANCE hInst, HINSTANCE hPrevInst, LPSTR args, int ncmdshow) {
+    WNDCLASSA wc = {0};
+    
+    // กำหนดสีพื้นหลังให้เป็น "สีสดๆ" (ในที่นี้ขอเลือกเป็น สีฟ้าสว่าง Cyan)
+    wc.hbrBackground = CreateSolidBrush(RGB(0, 255, 255)); 
+    wc.hCursor = LoadCursor(NULL, IDC_ARROW);
+    wc.hInstance = hInst;
+    wc.lpszClassName = "MyCalcClass";
+    wc.lpfnWndProc = WindowProcedure;
 
-	/* zero out the struct and set the stuff we want to modify */
-	memset(&wc,0,sizeof(wc));
-	wc.cbSize	 = sizeof(WNDCLASSEX);
-	wc.lpfnWndProc	 = WndProc; /* This is where we will send messages to */
-	wc.hInstance	 = hInstance;
-	wc.hCursor	 = LoadCursor(NULL, IDC_ARROW);
-	
-	/* White, COLOR_WINDOW is just a #define for a system color, try Ctrl+Clicking it */
-	wc.hbrBackground = (HBRUSH)(COLOR_WINDOW+1);
-	wc.lpszClassName = "WindowClass";
-	wc.hIcon	 = LoadIcon(NULL, IDI_APPLICATION); /* Load a standard icon */
-	wc.hIconSm	 = LoadIcon(NULL, IDI_APPLICATION); /* use the name "A" to use the project icon */
+    if (!RegisterClassA(&wc)) return -1;
 
-	if(!RegisterClassEx(&wc)) {
-		MessageBox(NULL, "Window Registration Failed!","Error!",MB_ICONEXCLAMATION|MB_OK);
-		return 0;
-	}
+    // ตั้งค่า Style ให้หน้าต่างไม่สามารถย่อ/ขยายได้ (เอา WS_THICKFRAME และ WS_MAXIMIZEBOX ออก)
+    DWORD style = WS_OVERLAPPED | WS_CAPTION | WS_SYSMENU | WS_MINIMIZEBOX;
 
-	hwnd = CreateWindowEx(WS_EX_CLIENTEDGE,"WindowClass","Caption",WS_VISIBLE|WS_OVERLAPPEDWINDOW,
-		CW_USEDEFAULT, /* x */
-		CW_USEDEFAULT, /* y */
-		640, /* width */
-		480, /* height */
-		NULL,NULL,hInstance,NULL);
+    // สร้าง Window กว้าง 250, สูง 200 และกำหนดชื่อ "My Calculator"
+    HWND hwnd = CreateWindowA("MyCalcClass", "My Calculator", style,
+        CW_USEDEFAULT, CW_USEDEFAULT, 250, 200, NULL, NULL, hInst, NULL);
 
-	if(hwnd == NULL) {
-		MessageBox(NULL, "Window Creation Failed!","Error!",MB_ICONEXCLAMATION|MB_OK);
-		return 0;
-	}
+    ShowWindow(hwnd, ncmdshow);
 
-	/*
-		This is the heart of our program where all input is processed and 
-		sent to WndProc. Note that GetMessage blocks code flow until it receives something, so
-		this loop will not produce unreasonably high CPU usage
-	*/
-	while(GetMessage(&msg, NULL, 0, 0) > 0) { /* If no error is received... */
-		TranslateMessage(&msg); /* Translate key codes to chars if present */
-		DispatchMessage(&msg); /* Send it to WndProc */
-	}
-	return msg.wParam;
+    // Message Loop สำหรับให้ Window รอรับ Action จากผู้ใช้
+    MSG msg = {0};
+    while (GetMessage(&msg, NULL, 0, 0)) {
+        TranslateMessage(&msg);
+        DispatchMessage(&msg);
+    }
+    return 0;
 }
